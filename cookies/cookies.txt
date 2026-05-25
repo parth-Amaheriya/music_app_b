@@ -1,0 +1,8 @@
+# Netscape HTTP Cookie File
+# https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp
+.youtube.com	TRUE	/	FALSE	9999999999	YSC	35m-F2rS59s
+.youtube.com	TRUE	/	FALSE	9999999999	VISITOR_INFO1_LIVE	tQoFr-p9WoA
+.youtube.com	TRUE	/	FALSE	9999999999	VISITOR_PRIVACY_METADATA	CgJJThIEGgAgSg%3D%3D
+.youtube.com	TRUE	/	FALSE	9999999999	__Secure-YNID	18.YT=kKY0eMH5FU8hHXFmyr9wGMA4UHCFb1lN_XLTXGjrcFziziPUfXShVRTKpuc9NUAOzt2wmtad8sPk4up_WYWp_hfAdSF5bZWSev8sqlR4dPe9x9Hkoc9Lgp_tzc9YPWFmLF98ItblHNpwpK66quGZqOccSyEo4dGgo-Q6MN4uUc6VbCqBMXpWCWFKLrFA_K3uMHVuhHLd_0GzYMpocSEXHn8YDpbHsx6jfSux2sVr2ydwpEyf7PFSoQTzkztKoUPZ1bHxUNQkPGXEDPa24wyO-qOlK_Y1Kjckk1llpIx2Sw-LY7KikkXxyMiBxrPBYfxoxMF-ApskUSyj1zISTHN_JA
+.youtube.com	TRUE	/	FALSE	9999999999	__Secure-ROLLOUT_TOKEN	CIux-LbKhY2NZxDwtqSUm9SUAxjT95iVm9SUAw%3D%3D
+.youtube.com	TRUE	/	FALSE	9999999999	PREF	repeat=NONE

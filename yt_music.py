@@ -7,69 +7,84 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 class YouTubeMusic:
     
+    COOKIES_PATH = "cookies/cookies.txt"   # ← Make sure this path is correct
+
     @staticmethod
     def _get_best_thumbnail(entry: Dict) -> str:
-        """Extract best quality poster/thumbnail URL"""
         if not entry:
             return None
             
-        # Try thumbnails list first
         thumbnails = entry.get('thumbnails', [])
         if thumbnails:
             best = max(thumbnails, key=lambda x: x.get('width', 0) * x.get('height', 0))
             return best.get('url')
         
-        # Fallback to standard thumbnail
         if entry.get('thumbnail'):
             return entry.get('thumbnail')
         
-        # Ultimate fallback
         video_id = entry.get('id')
-        if video_id:
-            return f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
-        return None
+        return f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg" if video_id else None
 
     @staticmethod
     def _get_best_audio_url(entry: Dict) -> str:
-        """Extract a direct audio stream URL when yt-dlp exposes one."""
         if not entry:
             return None
 
         formats = entry.get('formats', []) or []
-        audio_formats = [
-            format_entry for format_entry in formats
-            if format_entry.get('url') and format_entry.get('acodec') not in (None, 'none')
-        ]
+        audio_formats = [f for f in formats if f.get('url') and f.get('acodec') not in (None, 'none')]
 
         if audio_formats:
-            best = max(
-                audio_formats,
-                key=lambda format_entry: (format_entry.get('abr') or 0, format_entry.get('tbr') or 0),
-            )
+            best = max(audio_formats, key=lambda f: (f.get('abr') or 0, f.get('tbr') or 0))
             return best.get('url')
 
         return entry.get('url')
 
+    # ===================== CORE OPTIONS =====================
     @staticmethod
-    def search(query: str, limit: int = 10) -> List[Dict]:
-        """Search YouTube Music"""
-        ydl_opts = {
-            'extract_flat': True,
+    def _get_ydl_base_opts():
+        """Base options used across all methods"""
+        opts = {
             'quiet': True,
             'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+            'http_headers': {
+                'Referer': 'https://www.youtube.com/',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'ios', 'android', 'web_embedded'],
+                    'player_skip': ['web', 'ios', 'android'],  # Try different clients
+                }
+            },
+            'geo_bypass': True,
         }
-        search_url = f"ytsearch{limit}:\"{query}\""
+
+        # Add cookies if file exists
+        if Path(YouTubeMusic.COOKIES_PATH).exists():
+            opts['cookies'] = YouTubeMusic.COOKIES_PATH
+        else:
+            print(f"⚠️ Warning: cookies.txt not found at {YouTubeMusic.COOKIES_PATH}")
+
+        return opts
+
+    # ===================== SEARCH =====================
+    @staticmethod
+    def search(query: str, limit: int = 10) -> List[Dict]:
+        ydl_opts = YouTubeMusic._get_ydl_base_opts()
+        ydl_opts.update({
+            'extract_flat': True,
+            'quiet': True,
+        })
+
+        search_url = f"ytsearch{limit}:{query}"
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(search_url, download=False)
-                if not info or 'entries' not in info:
-                    return []
-
                 results = []
-                for entry in info['entries']:
-                    if not entry:
-                        continue
+                for entry in info.get('entries', []):
+                    if not entry: continue
                     duration = entry.get('duration')
                     duration_str = f"{int(duration//60)}:{int(duration%60):02d}" if duration else "N/A"
 
@@ -86,14 +101,54 @@ class YouTubeMusic:
             print(f"Search error: {e}")
             return []
 
+    # ===================== DOWNLOAD =====================
+    @staticmethod
+    def download_audio(url: str, task_id: str) -> Dict:
+        output_template = str(DOWNLOAD_DIR / f"%(title)s_{task_id}.%(ext)s")
+
+        ydl_opts = YouTubeMusic._get_ydl_base_opts()
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'outtmpl': output_template,
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'opus',
+            }],
+            'writethumbnail': True,
+            'embedthumbnail': True,
+            'addmetadata': True,
+            'embedmetadata': True,
+            'quiet': False,          # Helpful for debugging on Render logs
+        })
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                final_path = Path(ydl.prepare_filename(info)).with_suffix('.opus')
+
+                return {
+                    "status": "success",
+                    "title": info.get('title'),
+                    "filename": final_path.name,
+                    "download_url": f"/download/{final_path.name}",
+                    "poster_url": YouTubeMusic._get_best_thumbnail(info),
+                    "task_id": task_id
+                }
+        except Exception as e:
+            error_str = str(e)
+            if "Sign in to confirm" in error_str or "bot" in error_str.lower():
+                return {
+                    "status": "error", 
+                    "error": "YouTube bot detection triggered. Please refresh cookies.txt"
+                }
+            return {"status": "error", "error": error_str}
+
+    # ===================== INFO & RECOMMENDATIONS =====================
     @staticmethod
     def get_info(url: str) -> Dict:
-        """Get detailed info"""
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False
-        }
+        ydl_opts = YouTubeMusic._get_ydl_base_opts()
+        ydl_opts['extract_flat'] = False
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -111,59 +166,16 @@ class YouTubeMusic:
             return {"error": str(e)}
 
     @staticmethod
-    def download_audio(url: str, task_id: str) -> Dict:
-        """Download audio"""
-        output_template = DOWNLOAD_DIR / f"%(title)s_{task_id}.%(ext)s"
-
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': str(output_template),
-            'quiet': False,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['web', 'ios', 'android'],
-                }
-            },
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'opus',
-                'preferredquality': '0',
-            }],
-            'writethumbnail': True,
-            'embedthumbnail': True,
-            'addmetadata': True,
-            'embedmetadata': True,
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                final_path = Path(filename).with_suffix('.opus')
-
-                return {
-                    "status": "success",
-                    "title": info.get('title'),
-                    "filename": final_path.name,
-                    "download_url": f"/download/{final_path.name}",
-                    "poster_url": YouTubeMusic._get_best_thumbnail(info),
-                    "task_id": task_id
-                }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
-
-    @staticmethod
     def get_recommendations(url: str, limit: int = 10) -> List[Dict]:
-        """Get recommendations"""
         try:
             video_id = url.split('v=')[-1].split('&')[0]
             playlist_url = f"https://www.youtube.com/watch?v={video_id}&list=RD{video_id}"
 
-            ydl_opts = {
+            ydl_opts = YouTubeMusic._get_ydl_base_opts()
+            ydl_opts.update({
                 'extract_flat': True,
-                'playlistend': limit + 10,
-                'quiet': True,
-            }
+                'playlistend': limit + 15,
+            })
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(playlist_url, download=False)
