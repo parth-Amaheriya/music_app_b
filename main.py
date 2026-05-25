@@ -19,7 +19,7 @@ app = FastAPI(title="YouTube Music API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['https://soniq-f.vercel.app'],
+    allow_origins=['https://soniq-f.vercel.app', "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -137,7 +137,6 @@ async def download_background_task(url: str, task_id: str):
         tasks[task_id].update(result)
     except Exception as e:
         tasks[task_id].update({"status": "failed", "error": str(e)})
-
 
 @app.get("/")
 async def root():

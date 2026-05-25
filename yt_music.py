@@ -1,12 +1,31 @@
 import yt_dlp
 from pathlib import Path
 from typing import List, Dict
+
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 class YouTubeMusic:
     
-    COOKIES_PATH = "cookies/cookies.txt"   # Optional - can be empty
+    COOKIES_PATH = "cookies/cookies.txt"
+
+    # Print cookie status when class is loaded
+    @staticmethod
+    def _print_cookie_status():
+        cookie_file = Path(YouTubeMusic.COOKIES_PATH)
+        if cookie_file.exists():
+            try:
+                with open(cookie_file, 'r', encoding='utf-8') as f:
+                    lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                print(f"✅ Cookies loaded successfully | Path: {cookie_file} | Cookies count: {len(lines)}")
+            except Exception as e:
+                print(f"⚠️ Cookies file exists but could not read it: {e}")
+        else:
+            print(f"❌ Cookies file NOT found at: {cookie_file}")
+            print("   → YouTube may show 'Sign in to confirm you're not a bot' error")
+
+    # Call this once when the module is imported
+    _print_cookie_status()
 
     @staticmethod
     def _get_ydl_base_opts():
@@ -25,20 +44,19 @@ class YouTubeMusic:
                 }
             },
             'geo_bypass': True,
-            'sleep_interval': 5,           # Be gentle
+            'sleep_interval': 5,
             'max_sleep_interval': 10,
         }
 
-        # Add cookies only if file exists
         cookie_file = Path(YouTubeMusic.COOKIES_PATH)
         if cookie_file.exists():
             opts['cookies'] = str(cookie_file)
-            print("🍪 Using cookies.txt")
+            print("🍪 yt-dlp is using cookies.txt for this request")
         else:
-            print("⚠️ Running without cookies - may trigger bot detection")
+            print("⚠️ Running WITHOUT cookies - high chance of bot detection")
 
         return opts
-    
+
     @staticmethod
     def _get_best_thumbnail(entry: Dict) -> str:
         if not entry:
@@ -68,7 +86,6 @@ class YouTubeMusic:
             return best.get('url')
 
         return entry.get('url')
-
 
     # ===================== SEARCH =====================
     @staticmethod
@@ -139,9 +156,10 @@ class YouTubeMusic:
             if "Sign in to confirm" in error or "bot" in error.lower():
                 return {
                     "status": "error",
-                    "error": "YouTube blocked the request. Please add cookies from a throwaway account."
+                    "error": "YouTube blocked the request. Please update cookies.txt"
                 }
             return {"status": "error", "error": error}
+
     # ===================== INFO & RECOMMENDATIONS =====================
     @staticmethod
     def get_info(url: str) -> Dict:
