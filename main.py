@@ -8,18 +8,28 @@ from pathlib import Path
 import os
 import uuid
 from typing import List, Dict
-
+from load_env import load_env
 from yt_music import YouTubeMusic
+
+
+load_env()
 
 app = FastAPI(title="YouTube Music API", version="2.0")
 
+# Read env variable
+cors_origins = os.getenv("CORS_ORIGINS", "")
+
+# Convert to list
+origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Serve downloaded files
 DOWNLOAD_DIR = Path("downloads")
