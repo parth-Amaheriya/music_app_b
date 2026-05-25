@@ -24,8 +24,6 @@ class YouTubeMusic:
         except Exception as e:
             print(f"⚠️ ERROR during cookie check: {e}")
 
-    # Safe startup
-    _print_cookie_status()
 
     @staticmethod
     def _get_ydl_base_opts():
@@ -198,3 +196,5 @@ class YouTubeMusic:
         except Exception as e:
             print(f"Recommendations error: {e}")
             return []
+
+YouTubeMusic._print_cookie_status()        
