@@ -7,23 +7,24 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 class YouTubeMusic:
     
-    COOKIES_PATH = "cookies/cookies.txt"
+    COOKIES_PATH = "cookies.txt"   # ← Root directory
 
     @staticmethod
     def _print_cookie_status():
-        cookie_file = Path(YouTubeMusic.COOKIES_PATH)
-        if cookie_file.exists():
-            try:
+        try:
+            cookie_file = Path(YouTubeMusic.COOKIES_PATH)
+            if cookie_file.exists():
                 content = cookie_file.read_text(encoding='utf-8')
-                cookie_count = len([line for line in content.splitlines() if line.strip() and not line.startswith('#')])
-                print(f"✅ Cookies loaded successfully | {cookie_count} cookies found")
-            except Exception as e:
-                print(f"⚠️ Could not read cookies file: {e}")
-        else:
-            print(f"❌ cookies.txt NOT FOUND at: {cookie_file}")
-            print("   → Continuing without cookies (high chance of YouTube bot detection)")
+                cookie_count = len([line for line in content.splitlines() 
+                                  if line.strip() and not line.startswith('#')])
+                print(f"✅ SUCCESS: Cookies loaded | {cookie_count} cookies found")
+            else:
+                print(f"❌ WARNING: cookies.txt NOT FOUND at {cookie_file.absolute()}")
+                print("   → App will continue without cookies (YouTube will likely block)")
+        except Exception as e:
+            print(f"⚠️ ERROR during cookie check: {e}")
 
-    # Safe startup check
+    # Safe startup
     _print_cookie_status()
 
     @staticmethod
@@ -31,25 +32,17 @@ class YouTubeMusic:
         opts = {
             'quiet': True,
             'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-            'http_headers': {
-                'Referer': 'https://www.youtube.com/',
-                'Accept-Language': 'en-US,en;q=0.9',
-            },
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['ios', 'android', 'web', 'web_embedded', 'web_safari'],
-                }
-            },
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'http_headers': {'Referer': 'https://www.youtube.com/'},
+            'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
             'geo_bypass': True,
         }
 
-        cookie_file = Path(YouTubeMusic.COOKIES_PATH)
-        if cookie_file.exists():
-            opts['cookies'] = str(cookie_file)
-            print("🍪 yt-dlp will use cookies for this request")
+        if Path(YouTubeMusic.COOKIES_PATH).exists():
+            opts['cookies'] = YouTubeMusic.COOKIES_PATH
+            print("🍪 Using cookies.txt")
         else:
-            print("⚠️ Running WITHOUT cookies.txt")
+            print("⚠️ No cookies.txt - high risk of bot detection")
 
         return opts
 
