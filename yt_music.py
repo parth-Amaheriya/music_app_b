@@ -9,22 +9,21 @@ class YouTubeMusic:
     
     COOKIES_PATH = "cookies/cookies.txt"
 
-    # Print cookie status when class is loaded
     @staticmethod
     def _print_cookie_status():
         cookie_file = Path(YouTubeMusic.COOKIES_PATH)
         if cookie_file.exists():
             try:
-                with open(cookie_file, 'r', encoding='utf-8') as f:
-                    lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-                print(f"✅ Cookies loaded successfully | Path: {cookie_file} | Cookies count: {len(lines)}")
+                content = cookie_file.read_text(encoding='utf-8')
+                cookie_count = len([line for line in content.splitlines() if line.strip() and not line.startswith('#')])
+                print(f"✅ Cookies loaded successfully | {cookie_count} cookies found")
             except Exception as e:
-                print(f"⚠️ Cookies file exists but could not read it: {e}")
+                print(f"⚠️ Could not read cookies file: {e}")
         else:
-            print(f"❌ Cookies file NOT found at: {cookie_file}")
-            print("   → YouTube may show 'Sign in to confirm you're not a bot' error")
+            print(f"❌ cookies.txt NOT FOUND at: {cookie_file}")
+            print("   → Continuing without cookies (high chance of YouTube bot detection)")
 
-    # Call this once when the module is imported
+    # Safe startup check
     _print_cookie_status()
 
     @staticmethod
@@ -40,20 +39,17 @@ class YouTubeMusic:
             'extractor_args': {
                 'youtube': {
                     'player_client': ['ios', 'android', 'web', 'web_embedded', 'web_safari'],
-                    'player_skip': ['default', 'web'],
                 }
             },
             'geo_bypass': True,
-            'sleep_interval': 5,
-            'max_sleep_interval': 10,
         }
 
         cookie_file = Path(YouTubeMusic.COOKIES_PATH)
         if cookie_file.exists():
             opts['cookies'] = str(cookie_file)
-            print("🍪 yt-dlp is using cookies.txt for this request")
+            print("🍪 yt-dlp will use cookies for this request")
         else:
-            print("⚠️ Running WITHOUT cookies - high chance of bot detection")
+            print("⚠️ Running WITHOUT cookies.txt")
 
         return opts
 
