@@ -1,14 +1,44 @@
 import yt_dlp
 from pathlib import Path
 from typing import List, Dict
-
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 class YouTubeMusic:
     
-    COOKIES_PATH = "cookies/cookies.txt"   # ← Make sure this path is correct
+    COOKIES_PATH = "cookies/cookies.txt"   # Optional - can be empty
 
+    @staticmethod
+    def _get_ydl_base_opts():
+        opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+            'http_headers': {
+                'Referer': 'https://www.youtube.com/',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'web', 'web_embedded', 'web_safari'],
+                    'player_skip': ['default', 'web'],
+                }
+            },
+            'geo_bypass': True,
+            'sleep_interval': 5,           # Be gentle
+            'max_sleep_interval': 10,
+        }
+
+        # Add cookies only if file exists
+        cookie_file = Path(YouTubeMusic.COOKIES_PATH)
+        if cookie_file.exists():
+            opts['cookies'] = str(cookie_file)
+            print("🍪 Using cookies.txt")
+        else:
+            print("⚠️ Running without cookies - may trigger bot detection")
+
+        return opts
+    
     @staticmethod
     def _get_best_thumbnail(entry: Dict) -> str:
         if not entry:
@@ -39,34 +69,6 @@ class YouTubeMusic:
 
         return entry.get('url')
 
-    # ===================== CORE OPTIONS =====================
-    @staticmethod
-    def _get_ydl_base_opts():
-        """Base options used across all methods"""
-        opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-            'http_headers': {
-                'Referer': 'https://www.youtube.com/',
-                'Accept-Language': 'en-US,en;q=0.9',
-            },
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['web', 'ios', 'android', 'web_embedded'],
-                    'player_skip': ['web', 'ios', 'android'],  # Try different clients
-                }
-            },
-            'geo_bypass': True,
-        }
-
-        # Add cookies if file exists
-        if Path(YouTubeMusic.COOKIES_PATH).exists():
-            opts['cookies'] = YouTubeMusic.COOKIES_PATH
-        else:
-            print(f"⚠️ Warning: cookies.txt not found at {YouTubeMusic.COOKIES_PATH}")
-
-        return opts
 
     # ===================== SEARCH =====================
     @staticmethod
@@ -117,8 +119,7 @@ class YouTubeMusic:
             'writethumbnail': True,
             'embedthumbnail': True,
             'addmetadata': True,
-            'embedmetadata': True,
-            'quiet': False,          # Helpful for debugging on Render logs
+            'quiet': False,
         })
 
         try:
@@ -131,18 +132,16 @@ class YouTubeMusic:
                     "title": info.get('title'),
                     "filename": final_path.name,
                     "download_url": f"/download/{final_path.name}",
-                    "poster_url": YouTubeMusic._get_best_thumbnail(info),
                     "task_id": task_id
                 }
         except Exception as e:
-            error_str = str(e)
-            if "Sign in to confirm" in error_str or "bot" in error_str.lower():
+            error = str(e)
+            if "Sign in to confirm" in error or "bot" in error.lower():
                 return {
-                    "status": "error", 
-                    "error": "YouTube bot detection triggered. Please refresh cookies.txt"
+                    "status": "error",
+                    "error": "YouTube blocked the request. Please add cookies from a throwaway account."
                 }
-            return {"status": "error", "error": error_str}
-
+            return {"status": "error", "error": error}
     # ===================== INFO & RECOMMENDATIONS =====================
     @staticmethod
     def get_info(url: str) -> Dict:
