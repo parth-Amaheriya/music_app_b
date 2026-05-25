@@ -8,22 +8,18 @@ from pathlib import Path
 import os
 import uuid
 from typing import List, Dict
-from dotenv import load_dotenv
-load_dotenv()
+# from dotenv import load_dotenv
+# load_dotenv()
 from yt_music import YouTubeMusic
 
 app = FastAPI(title="YouTube Music API", version="2.0")
 
 # Read env variable
-cors_origins = os.getenv("CORS_ORIGINS", "")
 
-# Convert to list
-origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
-print(f"CORS Origins: {[*origins,'https://soniq-f.vercel.app'],}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[*origins,'https://soniq-f.vercel.app'],
+    allow_origins=['https://soniq-f.vercel.app'],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
