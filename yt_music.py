@@ -1,6 +1,9 @@
 import yt_dlp
 from pathlib import Path
 from typing import List, Dict
+import os 
+from dotenv import load_dotenv
+load_dotenv()
 
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
@@ -24,7 +27,15 @@ class YouTubeMusic:
         except Exception as e:
             print(f"⚠️ ERROR during cookie check: {e}")
 
-
+    @staticmethod
+    def _get_proxy():
+        """Get proxy from environment variable"""
+        proxy = os.getenv("PROXY_URL")
+        if proxy:
+            print(f"🌐 Using Proxy: {proxy}")
+            return proxy
+        return None
+    
     @staticmethod
     def _get_ydl_base_opts():
         opts = {
@@ -36,6 +47,12 @@ class YouTubeMusic:
             'geo_bypass': True,
         }
 
+        # Add Proxy
+        proxy = YouTubeMusic._get_proxy()
+        if proxy:
+            opts['proxy'] = proxy
+
+        # Cookies
         if Path(YouTubeMusic.COOKIES_PATH).exists():
             opts['cookies'] = YouTubeMusic.COOKIES_PATH
             print("🍪 Using cookies.txt")
