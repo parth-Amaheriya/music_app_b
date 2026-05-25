@@ -31,6 +31,7 @@ class YouTubeMusic:
     def _get_proxy():
         """Get proxy from environment variable"""
         proxy = os.getenv("PROXY_URL")
+        print(f"🔍 Checking for proxy... PROXY_URL={proxy}")
         if proxy:
             print(f"🌐 Using Proxy: {proxy}")
             return proxy
