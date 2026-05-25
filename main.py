@@ -8,11 +8,9 @@ from pathlib import Path
 import os
 import uuid
 from typing import List, Dict
-from load_env import load_env
+from dotenv import load_dotenv
+load_dotenv()
 from yt_music import YouTubeMusic
-
-
-load_env()
 
 app = FastAPI(title="YouTube Music API", version="2.0")
 
