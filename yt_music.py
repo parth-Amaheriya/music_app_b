@@ -5,17 +5,24 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-DOWNLOAD_DIR = Path("downloads")
+ROOT_DIR = Path(__file__).resolve().parent
+DOWNLOAD_DIR = ROOT_DIR / "downloads"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 class YouTubeMusic:
     
-    COOKIES_PATH = "cookies.txt"   # ← Root directory
+    COOKIES_PATH = ROOT_DIR / "cookies.txt"
+
+    @staticmethod
+    def _get_cookiefile_path() -> Path | None:
+        override_path = os.getenv("YTDLP_COOKIEFILE")
+        cookie_file = Path(override_path).expanduser() if override_path else YouTubeMusic.COOKIES_PATH
+        return cookie_file if cookie_file.exists() else None
 
     @staticmethod
     def _print_cookie_status():
         try:
-            cookie_file = Path(YouTubeMusic.COOKIES_PATH)
+            cookie_file = YouTubeMusic._get_cookiefile_path() or YouTubeMusic.COOKIES_PATH
             if cookie_file.exists():
                 content = cookie_file.read_text(encoding='utf-8')
                 cookie_count = len([line for line in content.splitlines() 
@@ -40,6 +47,7 @@ class YouTubeMusic:
     @staticmethod
     def _get_ydl_base_opts():
         opts = {
+            'ignoreconfig': True,
             'quiet': True,
             'no_warnings': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -54,8 +62,9 @@ class YouTubeMusic:
             opts['proxy'] = proxy
 
         # Cookies
-        if Path(YouTubeMusic.COOKIES_PATH).exists():
-            opts['cookies'] = YouTubeMusic.COOKIES_PATH
+        cookie_file = YouTubeMusic._get_cookiefile_path()
+        if cookie_file:
+            opts['cookiefile'] = str(cookie_file)
             print("🍪 Using cookies.txt")
         else:
             print("⚠️ No cookies.txt - high risk of bot detection")
@@ -79,18 +88,84 @@ class YouTubeMusic:
         return f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg" if video_id else None
 
     @staticmethod
-    def _get_best_audio_url(entry: Dict) -> str:
-        if not entry:
-            return None
+    def _codec_priority(codec: str | None) -> int:
+        if not codec or codec == 'none':
+            return 0
 
-        formats = entry.get('formats', []) or []
-        audio_formats = [f for f in formats if f.get('url') and f.get('acodec') not in (None, 'none')]
+        normalized = codec.lower()
+
+        if 'opus' in normalized:
+            return 400
+
+        if normalized.startswith('mp4a') or 'aac' in normalized:
+            return 300
+
+        if 'flac' in normalized:
+            return 250
+
+        if 'vorbis' in normalized or 'ogg' in normalized:
+            return 200
+
+        return 100
+
+    @staticmethod
+    def _format_audio_stream(fmt: Dict) -> Dict:
+        bitrate = int(fmt.get('abr') or fmt.get('tbr') or 0)
+        return {
+            "url": fmt.get('url'),
+            "format_id": fmt.get('format_id'),
+            "codec": fmt.get('acodec'),
+            "bitrate": bitrate,
+            "ext": fmt.get('ext'),
+            "format_note": fmt.get('format_note'),
+            "sample_rate": fmt.get('asr'),
+            "filesize": fmt.get('filesize'),
+            "filesize_approx": fmt.get('filesize_approx'),
+            "language": fmt.get('language'),
+        }
+
+    @staticmethod
+    def _select_audio_formats(entry: Dict, limit: int = 6) -> List[Dict]:
+        if not entry:
+            return []
+
+        seen_urls = set()
+        audio_formats = []
+
+        for fmt in entry.get('formats', []) or []:
+            url = fmt.get('url')
+            if not url or url in seen_urls:
+                continue
+
+            if fmt.get('vcodec') not in (None, 'none'):
+                continue
+
+            codec = fmt.get('acodec')
+            if codec in (None, 'none'):
+                continue
+
+            seen_urls.add(url)
+            audio_formats.append(YouTubeMusic._format_audio_stream(fmt))
+
+        audio_formats.sort(
+            key=lambda fmt: (
+                YouTubeMusic._codec_priority(fmt.get('codec')),
+                int(fmt.get('bitrate') or 0),
+                int(fmt.get('filesize') or fmt.get('filesize_approx') or 0),
+            ),
+            reverse=True,
+        )
+
+        return audio_formats[:limit]
+
+    @staticmethod
+    def _get_best_audio_url(entry: Dict) -> str:
+        audio_formats = YouTubeMusic._select_audio_formats(entry, limit=1)
 
         if audio_formats:
-            best = max(audio_formats, key=lambda f: (f.get('abr') or 0, f.get('tbr') or 0))
-            return best.get('url')
+            return audio_formats[0].get('url')
 
-        return entry.get('url')
+        return entry.get('url') if entry else None
 
     # ===================== SEARCH =====================
     @staticmethod
@@ -130,9 +205,8 @@ class YouTubeMusic:
     def download_audio(url: str, task_id: str) -> Dict:
         output_template = str(DOWNLOAD_DIR / f"%(title)s_{task_id}.%(ext)s")
 
-        ydl_opts = YouTubeMusic._get_ydl_base_opts()
-        ydl_opts.update({
-            'format': 'bestaudio/best',
+        base_opts = YouTubeMusic._get_ydl_base_opts()
+        base_opts.update({
             'outtmpl': output_template,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -144,18 +218,42 @@ class YouTubeMusic:
             'quiet': False,
         })
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                final_path = Path(ydl.prepare_filename(info)).with_suffix('.opus')
+        format_attempts = [
+            'bestaudio/best',
+            'bestaudio',
+            'best',
+            None,
+        ]
 
-                return {
-                    "status": "success",
-                    "title": info.get('title'),
-                    "filename": final_path.name,
-                    "download_url": f"/download/{final_path.name}",
-                    "task_id": task_id
-                }
+        try:
+            last_error = None
+            info = None
+
+            for format_selector in format_attempts:
+                ydl_opts = dict(base_opts)
+                if format_selector:
+                    ydl_opts['format'] = format_selector
+
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        final_path = Path(ydl.prepare_filename(info)).with_suffix('.opus')
+                        break
+                except Exception as exc:
+                    last_error = exc
+                    if 'Requested format is not available' not in str(exc):
+                        raise
+
+            if info is None:
+                raise last_error
+
+            return {
+                "status": "success",
+                "title": info.get('title'),
+                "filename": final_path.name,
+                "download_url": f"/download/{final_path.name}",
+                "task_id": task_id
+            }
         except Exception as e:
             error = str(e)
             if "Sign in to confirm" in error or "bot" in error.lower():
@@ -169,11 +267,19 @@ class YouTubeMusic:
     @staticmethod
     def get_info(url: str) -> Dict:
         ydl_opts = YouTubeMusic._get_ydl_base_opts()
-        ydl_opts['extract_flat'] = False
+        ydl_opts.update({
+            'extract_flat': False,
+            'quiet': True,
+            'no_warnings': True,
+        })
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                audio_formats = YouTubeMusic._select_audio_formats(info, limit=6)
+                best_format = audio_formats[0] if audio_formats else None
+                best_audio_url = best_format.get('url') if best_format else YouTubeMusic._get_best_audio_url(info)
+
                 return {
                     "id": info.get('id'),
                     "title": info.get('title'),
@@ -182,7 +288,12 @@ class YouTubeMusic:
                     "view_count": info.get('view_count'),
                     "poster_url": YouTubeMusic._get_best_thumbnail(info),
                     "url": info.get('webpage_url'),
-                    "stream_url": YouTubeMusic._get_best_audio_url(info),
+                    "best_audio_url": best_audio_url,
+                    "best_codec": best_format.get('codec') if best_format else None,
+                    "best_bitrate": best_format.get('bitrate') if best_format else 0,
+                    "best_ext": best_format.get('ext') if best_format else None,
+                    "audio_formats": audio_formats,
+                    "stream_url": best_audio_url,
                 }
         except Exception as e:
             return {"error": str(e)}

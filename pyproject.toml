@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "music-app-b"
+version = "0.1.0"
+description = "YouTube Music FastAPI service"
+requires-python = ">=3.10"
+dependencies = [
+	"fastapi[standard]",
+	"uvicorn[standard]",
+	"yt-dlp",
+	"python-multipart",
+	"pydantic",
+	"python-dotenv",
+]
+
+[tool.setuptools]
+py-modules = ["main", "yt_music"]
+
+[tool.fastapi]
+entrypoint = "main:app"

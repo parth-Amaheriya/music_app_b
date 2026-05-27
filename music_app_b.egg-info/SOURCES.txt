@@ -1,0 +1,8 @@
+main.py
+pyproject.toml
+yt_music.py
+music_app_b.egg-info/PKG-INFO
+music_app_b.egg-info/SOURCES.txt
+music_app_b.egg-info/dependency_links.txt
+music_app_b.egg-info/requires.txt
+music_app_b.egg-info/top_level.txt

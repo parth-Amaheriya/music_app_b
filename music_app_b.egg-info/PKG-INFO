@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: music-app-b
+Version: 0.1.0
+Summary: YouTube Music FastAPI service
+Requires-Python: >=3.10
+Requires-Dist: fastapi[standard]
+Requires-Dist: uvicorn[standard]
+Requires-Dist: yt-dlp
+Requires-Dist: python-multipart
+Requires-Dist: pydantic
+Requires-Dist: python-dotenv
