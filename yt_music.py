@@ -59,9 +59,6 @@ class YouTubeMusic:
             'extractor_args': {
                 'youtube': {
                     'player_client': ['ios', 'android', 'web', 'web_music', 'web_creator', 'web_embedded'],
-                    'po_token': True,
-                    'web_po_token': True,
-                    'fetch_pot': 'auto',
                 }
             },
             'geo_bypass': True,
