@@ -50,16 +50,31 @@ class YouTubeMusic:
             'ignoreconfig': True,
             'quiet': True,
             'no_warnings': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'http_headers': {'Referer': 'https://www.youtube.com/'},
-            'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+            'http_headers': {
+                'Referer': 'https://music.youtube.com/',
+                'Origin': 'https://music.youtube.com',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'web', 'web_music', 'web_creator', 'web_embedded'],
+                    'po_token': True,
+                    'web_po_token': True,
+                    'fetch_pot': 'auto',
+                }
+            },
             'geo_bypass': True,
+            'retries': 10,
+            'fragment_retries': 10,
+            'socket_timeout': 30,
         }
 
-        # Add Proxy
+        # Proxy (if using)
         proxy = YouTubeMusic._get_proxy()
         if proxy:
             opts['proxy'] = proxy
+            print(f"🌐 Using Proxy: {proxy}")
 
         # Cookies
         cookie_file = YouTubeMusic._get_cookiefile_path()
@@ -67,7 +82,7 @@ class YouTubeMusic:
             opts['cookiefile'] = str(cookie_file)
             print("🍪 Using cookies.txt")
         else:
-            print("⚠️ No cookies.txt - high risk of bot detection")
+            print("⚠️ No cookies.txt - high risk of blocking")
 
         return opts
 
@@ -276,9 +291,11 @@ class YouTubeMusic:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                audio_formats = YouTubeMusic._select_audio_formats(info, limit=6)
+
+                audio_formats = YouTubeMusic._select_audio_formats(info, limit=8)
+
                 best_format = audio_formats[0] if audio_formats else None
-                best_audio_url = best_format.get('url') if best_format else YouTubeMusic._get_best_audio_url(info)
+                best_audio_url = best_format.get('url') if best_format else None
 
                 return {
                     "id": info.get('id'),
@@ -296,6 +313,7 @@ class YouTubeMusic:
                     "stream_url": best_audio_url,
                 }
         except Exception as e:
+            print(f"get_info error for {url}: {str(e)}")
             return {"error": str(e)}
 
     @staticmethod
