@@ -141,13 +141,20 @@ class YouTubeMusic:
 
     @staticmethod
     def _select_audio_formats(entry: Dict, limit: int = 6) -> List[Dict]:
-        if not entry:
+        if not isinstance(entry, dict):
             return []
 
         seen_urls = set()
         audio_formats = []
 
-        for fmt in entry.get('formats', []) or []:
+        formats = entry.get('formats') or []
+        if not isinstance(formats, list):
+            formats = []
+
+        for fmt in formats:
+            if not isinstance(fmt, dict):
+                continue
+
             url = fmt.get('url')
             if not url or url in seen_urls:
                 continue
@@ -172,7 +179,7 @@ class YouTubeMusic:
         )
 
         return audio_formats[:limit]
-
+    
     @staticmethod
     def _get_best_audio_url(entry: Dict) -> str:
         audio_formats = YouTubeMusic._select_audio_formats(entry, limit=1)
@@ -292,6 +299,10 @@ class YouTubeMusic:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
+                # Critical Fix: Handle case when yt-dlp returns bool instead of dict
+                if not isinstance(info, dict):
+                    return {"error": f"Failed to extract info. Got unexpected type: {type(info)}"}
+
                 audio_formats = YouTubeMusic._select_audio_formats(info, limit=8)
 
                 best_format = audio_formats[0] if audio_formats else None
@@ -315,7 +326,7 @@ class YouTubeMusic:
         except Exception as e:
             print(f"get_info error for {url}: {str(e)}")
             return {"error": str(e)}
-
+        
     @staticmethod
     def get_recommendations(url: str, limit: int = 10) -> List[Dict]:
         try:
